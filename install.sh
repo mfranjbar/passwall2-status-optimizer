@@ -22,7 +22,6 @@ trap cleanup EXIT HUP INT TERM
 
 [ "$(id -u)" = "0" ] || die "Run as root."
 [ -x /bin/sh ] || die "/bin/sh is unavailable."
-sh -n "$0" || die "Installer shell syntax validation failed."
 [ -f /etc/openwrt_release ] || die "This script is intended for OpenWrt."
 command -v wget >/dev/null 2>&1 || die "wget is required."
 command -v awk >/dev/null 2>&1 || die "awk is required."
