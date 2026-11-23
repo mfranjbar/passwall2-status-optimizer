@@ -1,45 +1,44 @@
 # Passwall2 Status Optimizer
 
-A standalone post-installation patch for OpenWrt Passwall2.
+A standalone, guarded installer for the requested Passwall2 status-page sequence and test routing.
 
-## What it does
+## What it changes
 
-1. Downloads the base \`status.htm\` from the requested source:
-   \`iranopenwrt/auto/resources/status.htm\`
-2. Adds automatic connection checks in this order:
-   - Arvan: 3 seconds after the status page script starts
-   - YouTube: 1 second after the Arvan check starts
-   - X: 1 second after the YouTube check starts
-3. Patches Passwall2's \`connect_status()\` handler so only the \`youtube\` and \`twitter\` checks use:
-   \`socks5h://127.0.0.1:1070\`
-   Arvan and other check types remain direct.
-4. Creates a unique dated backup of the existing status page and controller before installing either patched file.
-5. Verifies the source structure and patch preconditions. It stops without changing the originals if the local Passwall2 controller does not match the supported source pattern.
-6. Is safe to run again: a complete existing installation exits without changing files; a partial installation is rejected.
+Only these two files are replaced:
 
-## Run after Passwall2 is installed
+- `/usr/lib/lua/luci/view/passwall2/global/status.htm`
+- `/usr/lib/lua/luci/controller/passwall2.lua`
 
-As root on the OpenWrt router:
+The installer downloads the status-page base from:
 
-\`\`\`sh
-sh -c "$(wget -qO- https://raw.githubusercontent.com/mfranjbar/passwall2-status-optimizer/main/install.sh)"
-\`\`\`
+`https://raw.githubusercontent.com/iranopenwrt/auto/refs/heads/main/resources/status.htm`
 
-## Files changed
+It then applies this sequence after the status page loads:
 
-- \`/usr/lib/lua/luci/view/passwall2/global/status.htm\`
-- \`/usr/lib/lua/luci/controller/passwall2.lua\`
+1. Arvan starts at **+3000 ms**.
+2. YouTube starts **1000 ms later** (**+4000 ms**).
+3. X starts **1000 ms later** (**+5000 ms**).
 
-Backups are stored under:
+Only the YouTube and X connection checks are routed through the fixed SOCKS5 endpoint `127.0.0.1:1070`. Arvan remains a direct check.
 
-- \`/root/backup/passwall2-status-optimizer/\`
+## Install
 
-No package feeds, packages, DNS, firewall, routing, or Passwall2 UCI settings are changed.
+Run as root on the OpenWrt router after Passwall2 is installed:
 
-## Important
+```sh
+wget -qO- https://raw.githubusercontent.com/mfranjbar/passwall2-status-optimizer/main/install.sh | sh
+```
 
-The SOCKS5 listener must be available at \`127.0.0.1:1070\` when the YouTube and X checks run. The installer reports whether it can detect that listener at installation time, but does not enable or reconfigure Passwall2 SOCKS settings.
+No package or feed update is performed.
 
-The installer is deliberately fail-closed: if the downloaded status page or local controller no longer matches the expected structure, it stops rather than applying a guessed patch.
+## Safety
 
-After installation, refresh the Passwall2 LuCI page. If the running web server has cached the controller module, reload the LuCI web service during a suitable maintenance window.
+- Creates a unique, dated backup of both original files under `/root/backup/passwall2-status-optimizer/`.
+- Validates the downloaded status-page structure and the supported Passwall2 controller signature before changing either original file.
+- Builds and verifies staged copies in the destination directories, preserving the original file ownership and permissions.
+- Replaces the two files atomically and attempts rollback if the second replacement or final verification fails.
+- A complete existing installation is detected and left unchanged. A partial or inconsistent installation is rejected.
+- Does not change UCI settings, DNS, firewall, routing, packages, feeds, or running services.
+- If the installed controller differs from the supported source pattern, the installer stops without patching it.
+
+After installation, refresh the Passwall2 status page in LuCI.
