@@ -22,6 +22,7 @@ trap cleanup EXIT HUP INT TERM
 
 [ "$(id -u)" = "0" ] || die "Run as root."
 [ -x /bin/sh ] || die "/bin/sh is unavailable."
+sh -n "$0" || die "Installer shell syntax validation failed."
 [ -f /etc/openwrt_release ] || die "This script is intended for OpenWrt."
 command -v wget >/dev/null 2>&1 || die "wget is required."
 command -v awk >/dev/null 2>&1 || die "awk is required."
@@ -79,7 +80,13 @@ cat > "$WORK/controller.fragment" <<'EOF'
 	-- PWSO_SOCKS_ROUTE_V1
 	local check_type = http.formvalue("type") or ""
 	local proxy_args = ""
-	if check_type == "youtube" or check_type == "twitter" then
+	local use_socks = false
+	if check_type == "youtube" and url and url:match("^https?://www%.youtube%.com/") then
+		use_socks = true
+	elseif check_type == "twitter" and url and url:match("^https?://x%.com/") then
+		use_socks = true
+	end
+	if use_socks then
 		proxy_args = " --socks5-hostname 127.0.0.1:1070"
 	end
 	local result = luci.sys.exec("curl" .. proxy_args .. " --connect-timeout 3 -o /dev/null -I -sk -w '%{http_code}:%{time_appconnect}' " .. util.shellquote(url or ""))
@@ -111,8 +118,14 @@ grep -Fq "$STATUS_MARKER" "$WORK/status.new" || die "Status patch validation fai
 grep -Fq "$CONTROLLER_MARKER" "$WORK/controller.new" || die "Controller patch validation failed."
 [ "$(grep -Fc "setTimeout(function()" "$WORK/status.new")" -ge 3 ] || die "Timing sequence validation failed."
 grep -Fq -- "--socks5-hostname 127.0.0.1:1070" "$WORK/controller.new" || die "SOCKS5 route validation failed."
-grep -Fq 'check_type == "youtube" or check_type == "twitter"' "$WORK/controller.new" || die "SOCKS5 target validation failed."
+grep -Fq 'url:match("^https?://www%.youtube%.com/")' "$WORK/controller.new" || die "YouTube host validation failed."
+grep -Fq 'url:match("^https?://x%.com/")' "$WORK/controller.new" || die "X host validation failed."
 grep -Fq 'util.shellquote(url or "")' "$WORK/controller.new" || die "URL shell-quoting validation failed."
+if command -v luac >/dev/null 2>&1; then
+    luac -p "$WORK/controller.new" || die "Lua syntax validation failed."
+else
+    warn "luac is unavailable; controller syntax was checked by guarded structural validation only."
+fi
 
 # Keep a unique, dated backup; never overwrite an earlier backup.
 stamp="$(date +%Y%m%d-%H%M%S)"
