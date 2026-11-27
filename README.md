@@ -32,6 +32,7 @@ A small, reversible patch for the Passwall2 LuCI status page. It staggers the th
 - Uses URL host matching before adding the proxy argument; unrelated checks are not proxied.
 - Shell-quotes the URL before passing it to the shell.
 - Preserves the AX3600 controller's `Mozilla/5.0` curl user-agent when that variant is detected.
+- Adds `local util = require "luci.util"` to Flint controller variants only when it is missing, so `util.shellquote()` is available without duplicating an existing AX3600 import.
 - Makes dated backups of both original files before replacing either one.
 - Supports repeat execution: a complete, valid installation is detected and left unchanged.
 - Includes a paired uninstall script bound to the exact installation backup; it refuses to overwrite files modified after installation.
@@ -65,7 +66,7 @@ The installer targets the standard Passwall2 LuCI file locations used by OpenWrt
 - GL.iNet Flint 2 / GL-MT6000
 - Xiaomi AX3600
 
-The controller patch recognizes the supported single-line `curl` assignment inside `connect_status()`, including the AX3600 form that adds `-A "Mozilla/5.0"`. It refuses to patch an unknown function layout, or if it cannot identify exactly one candidate curl assignment inside that function.
+The controller patch recognizes the supported single-line `curl` assignment inside `connect_status()` on the verified Flint 2 and AX3600 variants, including the AX3600 form that adds `-A "Mozilla/5.0"`. If `local util = require "luci.util"` is absent (as on the verified Flint 2 variant), the installer adds it immediately after the standard LuCI module declaration. If it is already present (as on the AX3600 variant), it is left unchanged. The installer refuses to patch an unknown module/function layout or if it cannot identify exactly one candidate curl assignment inside that function.
 
 Other router models or Passwall2 forks may use different file paths or controller code. They are not assumed compatible. The installer will stop rather than guess.
 
@@ -116,9 +117,10 @@ sh /tmp/pwso-uninstall.sh
 The uninstaller:
 
 - Requires the optimizer markers to exist in both target files.
-- Selects the newest complete backup containing both original files.
-- Restores the original `status.htm` and `passwall2.lua`.
-- Verifies that the optimizer markers are no longer present.
+- Reads the exact backup directory recorded by the successful installation; it never guesses based on timestamps.
+- Confirms both live files still match the saved post-install snapshots before restoring.
+- Restores the original `status.htm` and `passwall2.lua`, then verifies both restored files byte-for-byte.
+- Removes the active-install pointer only after successful restoration.
 - Retains all backup directories; it does not delete backups.
 - Does not restart Passwall2, uhttpd, or any other service.
 
@@ -137,7 +139,11 @@ Each backup contains:
 ```text
 status.htm.before
 passwall2.lua.before
+status.htm.after
+passwall2.lua.after
 ```
+
+The `*.before` files are the originals. The `*.after` files are exact snapshots of the installed pair used to detect later edits.
 
 To list available backups:
 
