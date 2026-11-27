@@ -7,6 +7,7 @@ STATUS_URL='https://raw.githubusercontent.com/iranopenwrt/auto/refs/heads/main/r
 STATUS_FILE='/usr/lib/lua/luci/view/passwall2/global/status.htm'
 CONTROLLER_FILE='/usr/lib/lua/luci/controller/passwall2.lua'
 BACKUP_ROOT='/root/backup/passwall2-status-optimizer'
+ACTIVE_FILE='/root/backup/passwall2-status-optimizer/active-backup'
 WORK="/tmp/passwall2-status-optimizer.$$"
 STATUS_MARKER='PWSO_AUTO_TEST_SEQUENCE_V1'
 CONTROLLER_MARKER='PWSO_SOCKS_ROUTE_V1'
@@ -64,7 +65,11 @@ if [ "$status_marked" -eq 1 ] && [ "$controller_marked" -eq 1 ]; then
     grep -Fq 'url:match("^https?://www%.youtube%.com/")' "$CONTROLLER_FILE" || die 'Installed YouTube route is inconsistent; no files changed.'
     grep -Fq 'url:match("^https?://x%.com/")' "$CONTROLLER_FILE" || die 'Installed X route is inconsistent; no files changed.'
     grep -Fq 'util.shellquote(url or "")' "$CONTROLLER_FILE" || die 'Installed URL quoting is inconsistent; no files changed.'
-    ok 'Optimizer is already installed and its required patches are present; no files changed.'
+    [ -s "$ACTIVE_FILE" ] || die 'A legacy installation is present without an installation-specific backup record. No files changed; restore it manually from the correct backup.'
+    ACTIVE_BACKUP="$(cat "$ACTIVE_FILE")"
+    case "$ACTIVE_BACKUP" in "$BACKUP_ROOT"/*) ;; *) die 'The active backup record points outside the backup directory; refusing to continue.' ;; esac
+    [ -f "$ACTIVE_BACKUP/status.htm.before" ] && [ -f "$ACTIVE_BACKUP/passwall2.lua.before" ] || die 'The active backup record is incomplete; no files changed.'
+    ok 'Optimizer is already installed and its recorded backup is present; no files changed.'
     exit 0
 fi
 [ "$status_marked" -eq 0 ] && [ "$controller_marked" -eq 0 ] || die 'Partial installation detected. No files changed; restore both files from the same backup.'
@@ -186,6 +191,19 @@ fi
 if ! cmp -s "$WORK/status.new" "$STATUS_FILE" || ! cmp -s "$WORK/controller.new" "$CONTROLLER_FILE"; then
     rollback
     die 'Post-install verification failed; rollback was attempted.'
+fi
+
+# Bind this installation to its exact backup and exact installed file pair.
+cp -p "$STATUS_FILE" "$BACKUP/status.htm.after"
+cp -p "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after"
+cmp -s "$STATUS_FILE" "$BACKUP/status.htm.after" || { rollback; die 'Could not verify installed status snapshot; rollback was attempted.'; }
+cmp -s "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after" || { rollback; die 'Could not verify installed controller snapshot; rollback was attempted.'; }
+ACTIVE_TMP="$BACKUP_ROOT/active-backup.$"
+printf '%s\\n' "$BACKUP" > "$ACTIVE_TMP"
+if ! mv -f "$ACTIVE_TMP" "$ACTIVE_FILE"; then
+    rm -f "$ACTIVE_TMP"
+    rollback
+    die 'Could not record the installation-specific backup; rollback was attempted.'
 fi
 CHANGED=0
 
