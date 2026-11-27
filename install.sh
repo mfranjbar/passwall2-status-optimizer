@@ -103,12 +103,12 @@ cat > "$WORK/status.fragment" <<'FRAGMENT'
 FRAGMENT
 
 cat > "$WORK/controller.fragment" <<FRAGMENT
-\t-- PWSO_SOCKS_ROUTE_V1
-\tlocal proxy_args = ""
-\tif url and (url:match("^https?://www%.youtube%.com/") or url:match("^https?://x%.com/")) then
-\t\tproxy_args = " --socks5-hostname 127.0.0.1:1070"
-\tend
-\tlocal result = luci.sys.exec("curl" .. proxy_args .. " --connect-timeout 3 -o /dev/null -I -sk${USER_AGENT} -w '%{http_code}:%{time_appconnect}' " .. util.shellquote(url or ""))
+    -- PWSO_SOCKS_ROUTE_V1
+    local proxy_args = ""
+    if url and (url:match("^https?://www%.youtube%.com/") or url:match("^https?://x%.com/")) then
+        proxy_args = " --socks5-hostname 127.0.0.1:1070"
+    end
+    local result = luci.sys.exec("curl" .. proxy_args .. " --connect-timeout 3 -o /dev/null -I -sk${USER_AGENT} -w '%{http_code}:%{time_appconnect}' " .. util.shellquote(url or ""))
 FRAGMENT
 
 awk -v fragment="$WORK/status.fragment" '
