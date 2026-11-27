@@ -6,7 +6,7 @@
 
 A small, reversible patch for the Passwall2 LuCI status page. It staggers the three connectivity checks and routes only the YouTube and X checks through the router's existing local SOCKS5 endpoint.
 
-> **Timing is intentional and fixed:** Arvan at **3 seconds**, YouTube at **4 seconds**, and X at **5 seconds** after the status page loads. These are absolute start offsets, not three separate delays measured from page load.
+> **Timing is intentional and fixed:** the sequential delays are **10 seconds, 10 seconds, and 30 seconds**. Therefore Arvan starts at **10 seconds**, YouTube at **20 seconds**, and X at **50 seconds** after the sequence begins.
 
 ## Contents
 
@@ -26,7 +26,7 @@ A small, reversible patch for the Passwall2 LuCI status page. It staggers the th
 ## Features
 
 - Staggers the automatic Passwall2 status checks to avoid launching all three at once.
-- Keeps the exact Flint 2 reference schedule: **3000 / 4000 / 5000 ms**.
+- Uses the requested sequential delays: **10000 / 10000 / 30000 ms** (start offsets: **10000 / 20000 / 50000 ms**).
 - Keeps Arvan direct.
 - Sends only the YouTube and X status checks through SOCKS5 at `127.0.0.1:1070`.
 - Uses URL host matching before adding the proxy argument; unrelated checks are not proxied.
@@ -39,15 +39,15 @@ A small, reversible patch for the Passwall2 LuCI status page. It staggers the th
 
 ## Exact test schedule
 
-The status page starts the checks at these offsets after its JavaScript sequence is scheduled:
+The status page uses nested timers. The listed delay is the wait after the preceding callback; the start offset is cumulative from the beginning of the sequence:
 
 | Check | Start offset | Timer value |
 |---|---:|---:|
-| Arvan Cloud | +3 seconds | `3000 ms` |
-| YouTube | +4 seconds | `4000 ms` |
-| X (Twitter) | +5 seconds | `5000 ms` |
+| Arvan Cloud | +10 seconds | `10000 ms` |
+| YouTube | +20 seconds | `10000 ms` |
+| X (Twitter) | +50 seconds | `30000 ms` |
 
-Implementation: the first timer is `3000 ms`; the nested timers each add `1000 ms`. Do not change these values if the goal is to keep the same behavior as the verified Flint 2 status page.
+Implementation: the first timer waits `10000 ms`; the second waits another `10000 ms`; the third waits another `30000 ms`. These are sequential delays, not absolute offsets.
 
 ## Routing behavior
 
@@ -209,7 +209,7 @@ Refresh the Passwall2 status page. The scripts do not restart LuCI or other serv
 
 - The measured `time_appconnect` value is curl's TLS connection timing field; it is not a full-page load measurement.
 - `--connect-timeout 3` remains unchanged. This is curl's connection timeout, not a total request deadline.
-- The timer offsets determine when each check starts; they do not guarantee that the previous network request has completed.
+- The sequential timer delays determine when each check starts; they do not guarantee that the previous network request has completed.
 - The controller patch routes by the submitted URL host. Only the exact supported YouTube and X URL patterns receive the SOCKS5 argument.
 - The installer is intentionally conservative. A new Passwall2 source variant should be inspected and explicitly supported rather than patched with a broad replacement.
 
