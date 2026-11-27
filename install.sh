@@ -43,7 +43,7 @@ rollback() {
 
 [ "$(id -u)" = 0 ] || die 'Run as root.'
 [ -f /etc/openwrt_release ] || die 'This installer is intended for OpenWrt.'
-for cmd in wget awk grep cmp cp mv mkdir date rm cat; do
+for cmd in wget awk grep cmp cp mv mkdir date rm cat mktemp; do
     command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
 done
 [ -f "$STATUS_FILE" ] || die "Passwall2 status page not found: $STATUS_FILE"
@@ -198,7 +198,7 @@ cp -p "$STATUS_FILE" "$BACKUP/status.htm.after"
 cp -p "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after"
 cmp -s "$STATUS_FILE" "$BACKUP/status.htm.after" || { rollback; die 'Could not verify installed status snapshot; rollback was attempted.'; }
 cmp -s "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after" || { rollback; die 'Could not verify installed controller snapshot; rollback was attempted.'; }
-ACTIVE_TMP="$BACKUP_ROOT/active-backup.tmp.$"
+ACTIVE_TMP="$(mktemp "$BACKUP_ROOT/active-backup.XXXXXX")"
 printf '%s\\n' "$BACKUP" > "$ACTIVE_TMP"
 if ! mv -f "$ACTIVE_TMP" "$ACTIVE_FILE"; then
     rm -f "$ACTIVE_TMP"
