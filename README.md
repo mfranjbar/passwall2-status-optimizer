@@ -1,8 +1,7 @@
 # Passwall2 Status Optimizer
 
-[![Platform](https://img.shields.io/badge/platform-OpenWrt%20%7C%20ImmortalWrt- blue)](https://openwrt.org/)
+[![Platform](https://img.shields.io/badge/platform-OpenWrt%20%7C%20ImmortalWrt-blue)](https://openwrt.org/)
 [![Shell](https://img.shields.io/badge/shell-BusyBox%20ash-lightgrey)](https://www.busybox.net/)
-[![License](https://img.shields.io/badge/license-see%20repository-lightgrey)](https://github.com/mfranjbar/passwall2-status-optimizer)
 
 A lightweight, reversible installer that optimizes the Passwall2 LuCI status-page connectivity checks while preserving the router's existing configuration.
 
