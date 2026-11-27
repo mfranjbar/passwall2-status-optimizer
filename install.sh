@@ -86,8 +86,9 @@ grep -Fq "check_connect('twitter', 'https://x.com/')" "$WORK/status.base" || die
 ! grep -Fq "$STATUS_MARKER" "$WORK/status.base" || die 'Source already contains the optimizer marker.'
 
 # Validate the controller narrowly: one single-line curl assignment inside connect_status().
-grep -Fq 'local util = require "luci.util"' "$CONTROLLER_FILE" || die 'Controller lacks luci.util; refusing an unsafe patch.'
+# Flint 2 may not import luci.util; AX3600 variants commonly already do.
 [ "$(grep -Fc 'function connect_status()' "$CONTROLLER_FILE" || true)" -eq 1 ] || die 'Expected exactly one connect_status() function.'
+[ "$(grep -Fc 'module("luci.controller.passwall2", package.seeall)' "$CONTROLLER_FILE" || true)" -eq 1 ] || die 'Expected the standard Passwall2 controller module declaration.'
 sed -n '/^function connect_status()/,/^function /p' "$CONTROLLER_FILE" > "$WORK/connect_status.source"
 [ "$(grep -Ec 'local result = luci\.sys\.exec\(.*curl.*url' "$WORK/connect_status.source" || true)" -eq 1 ] || die 'Expected exactly one supported single-line curl assignment inside connect_status(); no files changed.'
 USER_AGENT=''
@@ -138,6 +139,24 @@ in_connect && /local result = luci\.sys\.exec\(/ && /curl/ && /url/ {
 { print }
 END { if (starts != 1 || count != 1) exit 42 }
 ' "$CONTROLLER_FILE" > "$WORK/controller.new" || die 'Could not safely patch the controller.'
+
+# Add the required shell-quoting helper for Flint variants that do not import it.
+# Keep an existing AX3600 import untouched.
+if ! grep -Fq 'local util = require "luci.util"' "$WORK/controller.new"; then
+    awk '
+    /^module\("luci.controller.passwall2", package.seeall\)$/ {
+        print
+        print ""
+        print "local util = require \"luci.util\""
+        inserted++
+        next
+    }
+    { print }
+    END { if (inserted != 1) exit 43 }
+    ' "$WORK/controller.new" > "$WORK/controller.with_util" || die 'Could not safely add luci.util to the controller.'
+    mv -f "$WORK/controller.with_util" "$WORK/controller.new"
+fi
+grep -Fq 'local util = require "luci.util"' "$WORK/controller.new" || die 'luci.util import validation failed.'
 
 # Validate the exact sequence and the two narrowly-scoped proxy routes.
 grep -Fq "$STATUS_MARKER" "$WORK/status.new" || die 'Status marker validation failed.'
