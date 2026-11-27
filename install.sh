@@ -59,8 +59,8 @@ if [ "$status_marked" -eq 1 ] && [ "$controller_marked" -eq 1 ]; then
     grep -Fq "check_connect('youtube', 'https://www.youtube.com/')" "$STATUS_FILE" || die 'Installed status page is inconsistent; no files changed.'
     grep -Fq "check_connect('twitter', 'https://x.com/')" "$STATUS_FILE" || die 'Installed status page is inconsistent; no files changed.'
     [ "$(grep -Fc 'setTimeout(function() {' "$STATUS_FILE")" -eq 3 ] || die 'Installed timing sequence is inconsistent; no files changed.'
-    [ "$(grep -Fc '}, 1000);' "$STATUS_FILE")" -eq 2 ] || die 'Installed timing delays are inconsistent; no files changed.'
-    grep -Fq '}, 3000);' "$STATUS_FILE" || die 'Installed Arvan delay is inconsistent; no files changed.'
+    [ "$(grep -Fc '}, 10000);' "$STATUS_FILE")" -eq 2 ] || die 'Installed 10-second delays are inconsistent; no files changed.'
+    grep -Fq '}, 30000);' "$STATUS_FILE" || die 'Installed 30-second X delay is inconsistent; no files changed.'
     grep -Fq -- '--socks5-hostname 127.0.0.1:1070' "$CONTROLLER_FILE" || die 'Installed controller is inconsistent; no files changed.'
     grep -Fq 'url:match("^https?://www%.youtube%.com/")' "$CONTROLLER_FILE" || die 'Installed YouTube route is inconsistent; no files changed.'
     grep -Fq 'url:match("^https?://x%.com/")' "$CONTROLLER_FILE" || die 'Installed X route is inconsistent; no files changed.'
@@ -96,16 +96,16 @@ grep -Fq -- '-A "Mozilla/5.0"' "$WORK/connect_status.source" && USER_AGENT=' -A 
 
 cat > "$WORK/status.fragment" <<'FRAGMENT'
 		/* PWSO_AUTO_TEST_SEQUENCE_V1 */
-		// Arvan starts at +3000 ms; YouTube +1000 ms; X +1000 ms.
+		// Sequential delays: Arvan +10000 ms, then YouTube +10000 ms, then X +30000 ms.
 		setTimeout(function() {
 			check_connect('arvan', 'https://www.arvancloud.ir/fa');
 			setTimeout(function() {
 				check_connect('youtube', 'https://www.youtube.com/');
 				setTimeout(function() {
 					check_connect('twitter', 'https://x.com/');
-				}, 1000);
-			}, 1000);
-		}, 3000);
+				}, 30000);
+			}, 10000);
+		}, 10000);
 FRAGMENT
 
 cat > "$WORK/controller.fragment" <<FRAGMENT
@@ -161,7 +161,8 @@ grep -Fq 'local util = require "luci.util"' "$WORK/controller.new" || die 'luci.
 # Validate the exact sequence and the two narrowly-scoped proxy routes.
 grep -Fq "$STATUS_MARKER" "$WORK/status.new" || die 'Status marker validation failed.'
 [ "$(grep -Fc 'setTimeout(function() {' "$WORK/status.new")" -eq 3 ] || die 'Expected exactly three nested timers.'
-grep -Fq "}, 3000);" "$WORK/status.new" || die 'Arvan timer validation failed.'
+[ "$(grep -Fc '}, 10000);' "$WORK/status.new")" -eq 2 ] || die '10-second timer validation failed.'
+grep -Fq "}, 30000);" "$WORK/status.new" || die '30-second timer validation failed.'
 grep -Fq "check_connect('arvan', 'https://www.arvancloud.ir/fa');" "$WORK/status.new" || die 'Arvan call validation failed.'
 grep -Fq "check_connect('youtube', 'https://www.youtube.com/');" "$WORK/status.new" || die 'YouTube call validation failed.'
 grep -Fq "check_connect('twitter', 'https://x.com/');" "$WORK/status.new" || die 'X call validation failed.'
@@ -228,7 +229,7 @@ CHANGED=0
 
 ok 'Passwall2 Status Optimizer installed successfully.'
 info "Backup: $BACKUP"
-info 'Timing: Arvan +3000 ms, YouTube +4000 ms, X +5000 ms.'
+info 'Timing delays: Arvan 10 s, then YouTube 10 s later, then X 30 s later (start offsets: 10 s / 20 s / 50 s).'
 info 'Routing: only YouTube and X checks use 127.0.0.1:1070; Arvan remains direct.'
 info 'Only status.htm and passwall2.lua were changed.'
 info 'No UCI settings, packages, feeds, DNS, firewall, routing, or services were changed.'
