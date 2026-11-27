@@ -80,11 +80,13 @@ grep -Fq "check_connect('twitter', 'https://x.com/')" "$WORK/status.base" || die
 [ "$(grep -Fxc '//]]>' "$WORK/status.base" || true)" -eq 1 ] || die 'Expected exactly one JavaScript closing marker.'
 ! grep -Fq "$STATUS_MARKER" "$WORK/status.base" || die 'Source already contains the optimizer marker.'
 
-# Supported Passwall2 controller signature: replace exactly one curl line.
-OLD_CURL='	local result = luci.sys.exec('\''curl --connect-timeout 3 -o /dev/null -I -sk -w "%{http_code}:%{time_appconnect}" '\'' .. url)'
-[ "$(grep -Fxc "$OLD_CURL" "$CONTROLLER_FILE" || true)" -eq 1 ] || die 'Controller source does not match the supported Passwall2 connect_status() signature.'
+# Validate the controller narrowly: one single-line curl assignment inside connect_status().
 grep -Fq 'local util = require "luci.util"' "$CONTROLLER_FILE" || die 'Controller lacks luci.util; refusing an unsafe patch.'
 [ "$(grep -Fc 'function connect_status()' "$CONTROLLER_FILE" || true)" -eq 1 ] || die 'Expected exactly one connect_status() function.'
+sed -n '/^function connect_status()/,/^function /p' "$CONTROLLER_FILE" > "$WORK/connect_status.source"
+[ "$(grep -Ec 'local result = luci\\.sys\\.exec\\(.*curl.*url' "$WORK/connect_status.source" || true)" -eq 1 ] || die 'Expected exactly one supported single-line curl assignment inside connect_status(); no files changed.'
+USER_AGENT=''
+grep -Fq -- '-A "Mozilla/5.0"' "$WORK/connect_status.source" && USER_AGENT=' -A "Mozilla/5.0"' || true
 
 cat > "$WORK/status.fragment" <<'FRAGMENT'
 		/* PWSO_AUTO_TEST_SEQUENCE_V1 */
@@ -100,15 +102,13 @@ cat > "$WORK/status.fragment" <<'FRAGMENT'
 		}, 3000);
 FRAGMENT
 
-cat > "$WORK/controller.fragment" <<'FRAGMENT'
-	-- PWSO_SOCKS_ROUTE_V1
-	local check_type = http.formvalue("type") or ""
-	local proxy_args = ""
-	if (check_type == "youtube" and url and url:match("^https?://www%.youtube%.com/")) or
-	   (check_type == "twitter" and url and url:match("^https?://x%.com/")) then
-		proxy_args = " --socks5-hostname 127.0.0.1:1070"
-	end
-	local result = luci.sys.exec("curl" .. proxy_args .. " --connect-timeout 3 -o /dev/null -I -sk -w '%{http_code}:%{time_appconnect}' " .. util.shellquote(url or ""))
+cat > "$WORK/controller.fragment" <<FRAGMENT
+\t-- PWSO_SOCKS_ROUTE_V1
+\tlocal proxy_args = ""
+\tif url and (url:match("^https?://www%.youtube%.com/") or url:match("^https?://x%.com/")) then
+\t\tproxy_args = " --socks5-hostname 127.0.0.1:1070"
+\tend
+\tlocal result = luci.sys.exec("curl" .. proxy_args .. " --connect-timeout 3 -o /dev/null -I -sk${USER_AGENT} -w '%{http_code}:%{time_appconnect}' " .. util.shellquote(url or ""))
 FRAGMENT
 
 awk -v fragment="$WORK/status.fragment" '
@@ -121,15 +121,17 @@ $0 == "//]]>" {
 END { if (count != 1) exit 41 }
 ' "$WORK/status.base" > "$WORK/status.new" || die 'Could not safely patch status.htm.'
 
-awk -v target="$OLD_CURL" -v fragment="$WORK/controller.fragment" '
-$0 == target {
+awk -v fragment="$WORK/controller.fragment" '
+/^function connect_status\\(\\)/ { in_connect=1; starts++ }
+/^function / && !/^function connect_status\\(\\)/ && in_connect { in_connect=0 }
+in_connect && /local result = luci\\.sys\\.exec\\(/ && /curl/ && /url/ {
     count++
     while ((getline line < fragment) > 0) print line
     close(fragment)
     next
 }
 { print }
-END { if (count != 1) exit 42 }
+END { if (starts != 1 || count != 1) exit 42 }
 ' "$CONTROLLER_FILE" > "$WORK/controller.new" || die 'Could not safely patch the controller.'
 
 # Validate the exact sequence and the two narrowly-scoped proxy routes.
