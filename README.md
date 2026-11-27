@@ -18,13 +18,13 @@ No other controller imports, markers, helper functions, controller routing logic
 
 ## Default timing
 
-The defaults are **1000 / 1000 / 3000 ms sequential delays**:
+The defaults are **3000 / 1000 / 1000 ms sequential delays**:
 
 | Check | Delay from previous step | Start after sequence begins |
 |---|---:|---:|
-| Arvan | 1000 ms | 1 second |
-| YouTube | 1000 ms | 2 seconds |
-| X (Twitter) | 3000 ms | 5 seconds |
+| Arvan | 3000 ms | 3 seconds |
+| YouTube | 1000 ms | 4 seconds |
+| X (Twitter) | 1000 ms | 5 seconds |
 
 The installer leaves these values as requested. If another timing is needed on a particular router, edit the three timer values in `status.htm` manually after installation.
 
@@ -76,9 +76,9 @@ OpenWrt / ImmortalWrt with Passwall2 installed and the standard file paths shown
 In `status.htm`, the three values are the timers nested in this order:
 
 ```js
-}, 3000);  // X delay after YouTube
+}, 1000);  // X delay after YouTube
 }, 1000);  // YouTube delay after Arvan
-}, 1000);  // initial Arvan delay
+}, 3000);  // initial Arvan delay
 ```
 
 Change only the numeric values when needed. The default installation does not ask for timing input.
