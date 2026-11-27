@@ -198,7 +198,7 @@ cp -p "$STATUS_FILE" "$BACKUP/status.htm.after"
 cp -p "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after"
 cmp -s "$STATUS_FILE" "$BACKUP/status.htm.after" || { rollback; die 'Could not verify installed status snapshot; rollback was attempted.'; }
 cmp -s "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after" || { rollback; die 'Could not verify installed controller snapshot; rollback was attempted.'; }
-ACTIVE_TMP="$BACKUP_ROOT/active-backup.$"
+ACTIVE_TMP="$BACKUP_ROOT/active-backup.tmp.$"
 printf '%s\\n' "$BACKUP" > "$ACTIVE_TMP"
 if ! mv -f "$ACTIVE_TMP" "$ACTIVE_FILE"; then
     rm -f "$ACTIVE_TMP"
