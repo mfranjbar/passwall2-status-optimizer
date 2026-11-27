@@ -69,7 +69,7 @@ wget 'https://raw.githubusercontent.com/iranopenwrt/auto/refs/heads/main/resourc
 sed -i 's@local result = luci.sys.exec.*@local result = luci.sys.exec(string.format("curl --connect-timeout 3 %s -o /dev/null -I -sk -w \\"%%{http_code}:%%{time_appconnect}\\" %s", (url:find("youtube.com") or url:find("x.com") or url:find("twitter.com")) and "--socks5-hostname 127.0.0.1:1070" or "", url))@' /usr/lib/lua/luci/controller/passwall2.lua ||
     die 'Controller sed operation failed; originals will be restored.'
 
-# STEP 4: Apply the requested sequential status checks (3000 / 1000 / 1000 ms).
+# STEP 4: Apply the requested sequential status checks (1000 / 1000 / 3000 ms).
 F='/usr/lib/lua/luci/view/passwall2/global/status.htm'
 [ -f "$F" ] || die 'STATUS FILE NOT FOUND'
 
@@ -90,9 +90,9 @@ sed -i "/\/\/]]>/i\\
                         check_connect('youtube','https://www.youtube.com/');\\
                         setTimeout(function() {\\
                             check_connect('twitter','https://x.com/');\\
-                        }, 1000);\\
+                        }, 3000);\\
                     }, 1000);\\
-                }, 3000);\\
+                }, 1000);\\
 " "$F" || die 'Could not insert the requested status block.'
 
 grep -qF "check_connect('arvan','https://www.arvancloud.ir/fa')" "$F" || die 'Final status block verification failed.'
@@ -113,5 +113,5 @@ echo '===== INSTALLED BLOCK ====='
 grep -n -A 10 -B 2 "check_connect('arvan','https://www.arvancloud.ir/fa')" "$F"
 ok 'Installation completed. Only the two requested Passwall2 files were changed.'
 info "Original files are backed up in: $BACKUP"
-info 'Timing: Arvan +3000 ms, YouTube +4000 ms, X +5000 ms (sequential).'
+info 'Timing: Arvan +1000 ms, YouTube +2000 ms, X +5000 ms (sequential).'
 info 'No services, UCI settings, packages, DNS, firewall, or routing configuration were changed.'
