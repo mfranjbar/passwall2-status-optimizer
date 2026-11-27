@@ -34,7 +34,7 @@ A small, reversible patch for the Passwall2 LuCI status page. It staggers the th
 - Preserves the AX3600 controller's `Mozilla/5.0` curl user-agent when that variant is detected.
 - Makes dated backups of both original files before replacing either one.
 - Supports repeat execution: a complete, valid installation is detected and left unchanged.
-- Includes a paired uninstall script that restores the original two files from the installation backup.
+- Includes a paired uninstall script bound to the exact installation backup; it refuses to overwrite files modified after installation.
 
 ## Exact test schedule
 
@@ -126,7 +126,7 @@ Refresh the Passwall2 LuCI page after it completes.
 
 ## Backups and recovery
 
-Every successful installation creates a unique backup directory under:
+Every successful installation creates a unique, installation-specific backup directory under:
 
 ```text
 /root/backup/passwall2-status-optimizer/
@@ -145,9 +145,9 @@ To list available backups:
 ls -lt /root/backup/passwall2-status-optimizer/
 ```
 
-The uninstaller chooses the newest complete backup directory. Keep the backup directory if you may want to restore the optimizer later.
+The uninstaller uses only the backup recorded for the current installation. Before restoring, it compares both live files byte-for-byte with the saved `*.after` snapshots. If either file has been edited since installation, uninstall stops without changing anything. This prevents overwriting later Passwall2 updates or manual edits. Keep the backup directory if you may want to inspect or manually recover the files.
 
-If the installer reports a partial installation, do not delete markers or edit the Lua file manually. Inspect the backups first and use the matching original pair for recovery. The scripts intentionally stop on ambiguous states.
+If the installer reports a partial installation, do not delete markers or edit the Lua file manually. Inspect the backups first and use the matching original pair for recovery. Older installations created before the installation-specific `active-backup` record was introduced are treated as legacy: the updated uninstaller deliberately refuses to guess which timestamped backup belongs to them. The scripts intentionally stop on ambiguous states.
 
 ## What the scripts change
 
@@ -166,7 +166,7 @@ The controller change is limited to the curl command inside `connect_status()`. 
 
 ## Safety model
 
-- **Backup first:** both original files are copied and verified before replacement.
+- **Backup first:** both original files are copied and verified before replacement; after replacement, the exact installed pair is also saved for later change detection.\n- **Installation-bound restore:** uninstall restores only the backup recorded by that installation, never merely the newest timestamped folder.\n- **No clobber on later edits:** uninstall refuses to restore if either live file differs from its saved post-install snapshot.
 - **Narrow patch scope:** only the two Passwall2 LuCI files listed above are replaced.
 - **No blind search-and-replace:** the controller function and candidate curl line are checked before patching.
 - **Staged validation:** temporary patched files are checked before the originals are touched.
