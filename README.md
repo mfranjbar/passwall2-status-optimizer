@@ -1,46 +1,91 @@
 # Passwall2 Status Optimizer
 
-A small, reversible installer for the Passwall2 LuCI status page and its connectivity-test controller command.
+[![Platform](https://img.shields.io/badge/platform-OpenWrt%20%7C%20ImmortalWrt- blue)](https://openwrt.org/)
+[![Shell](https://img.shields.io/badge/shell-BusyBox%20ash-lightgrey)](https://www.busybox.net/)
+[![License](https://img.shields.io/badge/license-see%20repository-lightgrey)](https://github.com/mfranjbar/passwall2-status-optimizer)
 
-## What it does
+A lightweight, reversible installer that optimizes the Passwall2 LuCI status-page connectivity checks while preserving the router's existing configuration.
 
-The installer performs the requested operations in this order:
+> **Default sequence:** Arvan starts after **3 seconds**, YouTube after **4 seconds**, and X (Twitter) after **5 seconds**.
 
-1. **Backs up both original files first**:
-   - `/usr/lib/lua/luci/view/passwall2/global/status.htm`
-   - `/usr/lib/lua/luci/controller/passwall2.lua`
-2. Downloads the upstream status page directly to its final path:
-   `https://raw.githubusercontent.com/iranopenwrt/auto/refs/heads/main/resources/status.htm`
-3. Applies the specified `sed -i` replacement to the controller's `local result = luci.sys.exec...` line. YouTube, X, and Twitter URLs use the existing SOCKS5 endpoint `127.0.0.1:1070`; other URLs do not.
-4. Inserts the three sequential status checks immediately before `//]]>`.
+## Contents
 
-No other controller imports, markers, helper functions, controller routing logic, service settings, packages, DNS, firewall, or UCI configuration are added or changed.
+- [Features](#features)
+- [Execution sequence](#execution-sequence)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Uninstallation](#uninstallation)
+- [Backup and recovery](#backup-and-recovery)
+- [Verification](#verification)
+- [Scope and safety](#scope-and-safety)
+- [Compatibility and troubleshooting](#compatibility-and-troubleshooting)
 
-## Default timing
+## Features
 
-The defaults are **3000 / 1000 / 1000 ms sequential delays**:
+- Sequential Arvan, YouTube, and X (Twitter) connectivity checks.
+- Uses the existing SOCKS5 endpoint `127.0.0.1:1070` for YouTube, X, and Twitter checks.
+- Downloads the status page from the specified upstream source.
+- Creates and verifies backups of both affected files before editing.
+- Attempts automatic restoration if installation fails after backup creation.
+- Includes an uninstaller that restores the exact originals from the last successful installation.
+- Retains dated backups; installation and uninstallation do not delete them.
+- Does not restart Passwall2 or other services.
 
-| Check | Delay from previous step | Start after sequence begins |
+## Execution sequence
+
+The default delays are **3000 / 1000 / 1000 milliseconds**, in nested timer order:
+
+| Check | Delay | Expected start |
 |---|---:|---:|
-| Arvan | 3000 ms | 3 seconds |
-| YouTube | 1000 ms | 4 seconds |
-| X (Twitter) | 1000 ms | 5 seconds |
+| Arvan | 3000 ms initial delay | +3 seconds |
+| YouTube | 1000 ms after Arvan starts | +4 seconds |
+| X (Twitter) | 1000 ms after YouTube starts | +5 seconds |
 
-The installer leaves these values as requested. If another timing is needed on a particular router, edit the three timer values in `status.htm` manually after installation.
+The equivalent JavaScript timer structure is:
 
-## Install
+```js
+setTimeout(function() {
+    check_connect('arvan', 'https://www.arvancloud.ir/fa');
+    setTimeout(function() {
+        check_connect('youtube', 'https://www.youtube.com/');
+        setTimeout(function() {
+            check_connect('twitter', 'https://x.com/');
+        }, 1000);
+    }, 1000);
+}, 3000);
+```
 
-Run as root:
+These are sequential start delays, not test timeouts. The installer applies these defaults automatically; no timing input is required.
+
+## Requirements
+
+- OpenWrt or ImmortalWrt.
+- Passwall2 installed with its standard LuCI file paths.
+- Root access.
+- The expected controller curl assignment must exist exactly once.
+
+## Installation
+
+Run the following command as root:
 
 ```sh
 wget -O /tmp/pwso-install.sh https://raw.githubusercontent.com/mfranjbar/passwall2-status-optimizer/main/install.sh && sh /tmp/pwso-install.sh
 ```
 
-The installer verifies the expected files and controller curl line, creates and verifies a dated backup of both files, then runs the requested download and edits in order. If an operation fails after the backup, it attempts to restore both originals.
+The installer:
 
-After installation, refresh the Passwall2 LuCI status page. No service restart is performed.
+1. Checks the environment and required files.
+2. Confirms the expected controller curl line is present exactly once.
+3. Creates a dated backup of both original files and verifies the backup.
+4. Downloads the upstream status page to its target path:
+   `https://raw.githubusercontent.com/iranopenwrt/auto/refs/heads/main/resources/status.htm`
+5. Applies the specified controller curl adjustment.
+6. Inserts the sequential status checks with the default timing.
+7. Verifies the resulting files.
 
-## Uninstall
+Refresh the Passwall2 LuCI status page after installation. No service restart is performed.
+
+## Uninstallation
 
 Run as root:
 
@@ -48,11 +93,13 @@ Run as root:
 wget -O /tmp/pwso-uninstall.sh https://raw.githubusercontent.com/mfranjbar/passwall2-status-optimizer/main/uninstall.sh && sh /tmp/pwso-uninstall.sh
 ```
 
-The uninstaller restores both original files from the exact backup recorded by the last successful installation. Backups are retained and are not deleted.
+The uninstaller restores both original files from the backup recorded by the last successful installation. It retains all backup directories.
 
-## Backup location
+## Backup and recovery
 
-```
+Backups are stored under:
+
+```text
 /root/backup/passwall2-status-optimizer/
 ```
 
@@ -61,19 +108,20 @@ Each installation creates a timestamped directory containing:
 - `status.htm.before`
 - `passwall2.lua.before`
 
-The `active-backup` file identifies the backup belonging to the current installation.
+The `active-backup` file identifies the backup associated with the current successful installation.
 
-## Scope
+If installation fails after backup creation, the installer attempts to restore both original files automatically. Keep the backup directory intact until you have confirmed the router is working as expected.
 
-Only the two Passwall2 files above are modified. The scripts do not install packages, change UCI, alter DNS/firewall/routing configuration, or restart services.
+## Verification
 
-## Supported environments
+To inspect the installed timing without changing anything:
 
-OpenWrt / ImmortalWrt with Passwall2 installed and the standard file paths shown above. The controller replacement expects exactly one matching `local result = luci.sys.exec...` curl assignment. If that line is not found exactly once, installation stops before changing files.
+```sh
+F='/usr/lib/lua/luci/view/passwall2/global/status.htm'
+grep -n -A 9 "check_connect('arvan','https://www.arvancloud.ir/fa')" "$F"
+```
 
-## Manual timing adjustment
-
-In `status.htm`, the three values are the timers nested in this order:
+The nested timer values should appear in this order:
 
 ```js
 }, 1000);  // X delay after YouTube
@@ -81,7 +129,30 @@ In `status.htm`, the three values are the timers nested in this order:
 }, 3000);  // initial Arvan delay
 ```
 
-Change only the numeric values when needed. The default installation does not ask for timing input.
+## Scope and safety
+
+The installer modifies only these two files:
+
+- `/usr/lib/lua/luci/view/passwall2/global/status.htm`
+- `/usr/lib/lua/luci/controller/passwall2.lua`
+
+It does **not**:
+
+- Change UCI configuration.
+- Modify DNS, firewall, routing, or network settings.
+- Install or remove packages.
+- Add controller imports, helper functions, markers, or routing logic.
+- Change the SOCKS5 endpoint from `127.0.0.1:1070`.
+- Restart Passwall2, LuCI, or any other service.
+
+The controller adjustment routes YouTube, X, and Twitter URL checks through the existing SOCKS5 endpoint; other URL checks do not use that SOCKS5 option.
+
+## Compatibility and troubleshooting
+
+The scripts expect the standard Passwall2 paths listed above. The installer stops before modifying files if the expected controller curl assignment is missing or appears more than once.
+
+If the status page does not reflect the change, refresh the LuCI page and run the [verification](#verification) command. If you need to revert, use the uninstallation command above.
 
 ---
-Project: https://github.com/mfranjbar/passwall2-status-optimizer
+
+**Repository:** https://github.com/mfranjbar/passwall2-status-optimizer
