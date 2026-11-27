@@ -90,9 +90,9 @@ sed -i "/\/\/]]>/i\\
                         check_connect('youtube','https://www.youtube.com/');\\
                         setTimeout(function() {\\
                             check_connect('twitter','https://x.com/');\\
-                        }, 3000);\\
+                        }, 1000);\\
                     }, 1000);\\
-                }, 1000);\\
+                }, 3000);\\
 " "$F" || die 'Could not insert the requested status block.'
 
 grep -qF "check_connect('arvan','https://www.arvancloud.ir/fa')" "$F" || die 'Final status block verification failed.'
@@ -113,5 +113,5 @@ echo '===== INSTALLED BLOCK ====='
 grep -n -A 10 -B 2 "check_connect('arvan','https://www.arvancloud.ir/fa')" "$F"
 ok 'Installation completed. Only the two requested Passwall2 files were changed.'
 info "Original files are backed up in: $BACKUP"
-info 'Timing: Arvan +1000 ms, YouTube +2000 ms, X +5000 ms (sequential).'
+info 'Timing: Arvan +3000 ms, YouTube +4000 ms, X +5000 ms (sequential).'
 info 'No services, UCI settings, packages, DNS, firewall, or routing configuration were changed.'
