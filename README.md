@@ -73,7 +73,7 @@ Other router models or Passwall2 forks may use different file paths or controlle
 
 - OpenWrt or ImmortalWrt with Passwall2 installed.
 - Root shell access.
-- `wget`, `awk`, `grep`, `cp`, `mv`, `cmp`, and standard BusyBox/POSIX utilities.
+- `wget`, `awk`, `grep`, `cp`, `mv`, `cmp`, `mktemp`, and standard BusyBox/POSIX utilities.
 - Existing SOCKS5 listener at `127.0.0.1:1070` if proxied YouTube/X checks are expected to work.
 - Network access to GitHub and the status-page source URL used by the installer.
 
