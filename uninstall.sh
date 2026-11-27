@@ -1,5 +1,5 @@
 #!/bin/sh
-# Passwall2 Status Optimizer - installation-bound, guarded two-file restore
+# Passwall2 Status Optimizer - restore the exact backup from the last successful install
 set -eu
 umask 077
 
@@ -7,68 +7,42 @@ STATUS_FILE='/usr/lib/lua/luci/view/passwall2/global/status.htm'
 CONTROLLER_FILE='/usr/lib/lua/luci/controller/passwall2.lua'
 BACKUP_ROOT='/root/backup/passwall2-status-optimizer'
 ACTIVE_FILE="$BACKUP_ROOT/active-backup"
-WORK="/tmp/passwall2-status-optimizer-uninstall.$$"
-STATUS_STAGE="${STATUS_FILE}.pwso-restore.$$"
-CONTROLLER_STAGE="${CONTROLLER_FILE}.pwso-restore.$$"
-STATUS_MARKER='PWSO_AUTO_TEST_SEQUENCE_V1'
-CONTROLLER_MARKER='PWSO_SOCKS_ROUTE_V1'
+WORK="$BACKUP_ROOT/restore.$$"
 
-info() { printf '[INFO] %s\n' "$*"; }
-ok() { printf '[OK] %s\n' "$*"; }
 die() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
-
-cleanup() {
-    rm -rf "$WORK"
-    rm -f "$STATUS_STAGE" "$CONTROLLER_STAGE" "$STATUS_STAGE.rollback" "$CONTROLLER_STAGE.rollback"
-}
+cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
 [ "$(id -u)" = 0 ] || die 'Run as root.'
-[ -f "$STATUS_FILE" ] || die "Passwall2 status page not found: $STATUS_FILE"
-[ -f "$CONTROLLER_FILE" ] || die "Passwall2 controller not found: $CONTROLLER_FILE"
-grep -Fq "$STATUS_MARKER" "$STATUS_FILE" || die 'Optimizer marker not found in status.htm; refusing to restore unrelated files.'
-grep -Fq "$CONTROLLER_MARKER" "$CONTROLLER_FILE" || die 'Optimizer marker not found in passwall2.lua; refusing to restore unrelated files.'
-[ -s "$ACTIVE_FILE" ] || die 'No installation-specific backup record exists. Refusing to guess which backup belongs to this installation.'
-
+[ -s "$ACTIVE_FILE" ] || die 'No active installation backup record exists; refusing to guess.'
 BACKUP="$(cat "$ACTIVE_FILE")"
-case "$BACKUP" in "$BACKUP_ROOT"/*) ;; *) die 'The active backup record points outside the expected backup directory.' ;; esac
-[ -d "$BACKUP" ] || die "Recorded backup directory does not exist: $BACKUP"
-for file in status.htm.before passwall2.lua.before status.htm.after passwall2.lua.after; do
-    [ -f "$BACKUP/$file" ] || die "Recorded backup is incomplete ($file missing); no files changed."
-done
-
-# Refuse to overwrite any edits made after installation.
-cmp -s "$STATUS_FILE" "$BACKUP/status.htm.after" || die 'status.htm has changed since installation. No files changed; inspect it before restoring.'
-cmp -s "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.after" || die 'passwall2.lua has changed since installation. No files changed; inspect it before restoring.'
+case "$BACKUP" in "$BACKUP_ROOT"/*) ;; *) die 'Backup record points outside the optimizer backup directory.' ;; esac
+[ -f "$BACKUP/status.htm.before" ] || die 'Original status.htm backup is missing.'
+[ -f "$BACKUP/passwall2.lua.before" ] || die 'Original controller backup is missing.'
+[ -f "$STATUS_FILE" ] && [ -f "$CONTROLLER_FILE" ] || die 'One or both Passwall2 target files are missing.'
 
 mkdir -p "$WORK"
-cp -p "$BACKUP/status.htm.before" "$STATUS_STAGE"
-cp -p "$BACKUP/passwall2.lua.before" "$CONTROLLER_STAGE"
-cmp -s "$BACKUP/status.htm.before" "$STATUS_STAGE" || die 'Status restore staging verification failed.'
-cmp -s "$BACKUP/passwall2.lua.before" "$CONTROLLER_STAGE" || die 'Controller restore staging verification failed.'
-cp -p "$STATUS_FILE" "$WORK/status.installed"
-cp -p "$CONTROLLER_FILE" "$WORK/controller.installed"
+cp -p "$BACKUP/status.htm.before" "$WORK/status.htm"
+cp -p "$BACKUP/passwall2.lua.before" "$WORK/passwall2.lua"
+cmp -s "$BACKUP/status.htm.before" "$WORK/status.htm" || die 'Status restore staging verification failed.'
+cmp -s "$BACKUP/passwall2.lua.before" "$WORK/passwall2.lua" || die 'Controller restore staging verification failed.'
 
-if ! mv -f "$STATUS_STAGE" "$STATUS_FILE"; then
-    die 'Could not restore status.htm; installed files remain unchanged.'
+# Preserve the current pair so a failed second replacement can be rolled back.
+cp -p "$STATUS_FILE" "$WORK/status.current"
+cp -p "$CONTROLLER_FILE" "$WORK/controller.current"
+mv -f "$WORK/status.htm" "$STATUS_FILE" || die 'Could not restore status.htm.'
+if ! mv -f "$WORK/passwall2.lua" "$CONTROLLER_FILE"; then
+    cp -p "$WORK/status.current" "$STATUS_FILE"
+    die 'Could not restore controller; status.htm was rolled back.'
 fi
-if ! mv -f "$CONTROLLER_STAGE" "$CONTROLLER_FILE"; then
-    cp -p "$WORK/status.installed" "$STATUS_STAGE"
-    mv -f "$STATUS_STAGE" "$STATUS_FILE" || die 'Controller restore failed and status.htm rollback also failed; manual recovery is required.'
-    die 'Could not restore passwall2.lua; status.htm was rolled back.'
-fi
-
 if ! cmp -s "$STATUS_FILE" "$BACKUP/status.htm.before" || ! cmp -s "$CONTROLLER_FILE" "$BACKUP/passwall2.lua.before"; then
-    cp -p "$WORK/status.installed" "$STATUS_STAGE"
-    cp -p "$WORK/controller.installed" "$CONTROLLER_STAGE"
-    mv -f "$STATUS_STAGE" "$STATUS_FILE" || die 'Restore verification failed and status.htm rollback failed; manual recovery is required.'
-    mv -f "$CONTROLLER_STAGE" "$CONTROLLER_FILE" || die 'Restore verification failed and controller rollback failed; manual recovery is required.'
-    die 'Restore verification failed; the installed pair was restored.'
+    cp -p "$WORK/status.current" "$STATUS_FILE"
+    cp -p "$WORK/controller.current" "$CONTROLLER_FILE"
+    die 'Restore verification failed; previous installed files were restored.'
 fi
 
 rm -f "$ACTIVE_FILE"
-ok 'Passwall2 Status Optimizer has been removed.'
-info "Restored both original files from the exact installation backup: $BACKUP"
-info 'No services were restarted. Refresh the Passwall2 LuCI page.'
-info 'The backup directory was retained; it was not deleted.'
+echo '[OK] Original status.htm and passwall2.lua restored.'
+echo "[INFO] Backup retained: $BACKUP"
+echo '[INFO] No services were restarted.'
