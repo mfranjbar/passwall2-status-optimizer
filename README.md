@@ -3,7 +3,6 @@
 [![OpenWrt](https://img.shields.io/badge/platform-OpenWrt%20%2F%20ImmortalWrt-00A86B?logo=openwrt&logoColor=white)](https://openwrt.org/)
 [![Passwall2](https://img.shields.io/badge/target-Passwall2-2563EB)](https://github.com/xiaorouji/openwrt-passwall)
 [![Shell](https://img.shields.io/badge/shell-POSIX%20sh-4EAA25?logo=gnubash&logoColor=white)](https://www.shellcheck.net/)
-[![License](https://img.shields.io/badge/license-MIT-informational)](LICENSE)
 
 A small, reversible patch for the Passwall2 LuCI status page. It staggers the three connectivity checks and routes only the YouTube and X checks through the router's existing local SOCKS5 endpoint.
 
