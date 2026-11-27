@@ -84,7 +84,7 @@ grep -Fq "check_connect('twitter', 'https://x.com/')" "$WORK/status.base" || die
 grep -Fq 'local util = require "luci.util"' "$CONTROLLER_FILE" || die 'Controller lacks luci.util; refusing an unsafe patch.'
 [ "$(grep -Fc 'function connect_status()' "$CONTROLLER_FILE" || true)" -eq 1 ] || die 'Expected exactly one connect_status() function.'
 sed -n '/^function connect_status()/,/^function /p' "$CONTROLLER_FILE" > "$WORK/connect_status.source"
-[ "$(grep -Ec 'local result = luci\\.sys\\.exec\\(.*curl.*url' "$WORK/connect_status.source" || true)" -eq 1 ] || die 'Expected exactly one supported single-line curl assignment inside connect_status(); no files changed.'
+[ "$(grep -Ec 'local result = luci\.sys\.exec\(.*curl.*url' "$WORK/connect_status.source" || true)" -eq 1 ] || die 'Expected exactly one supported single-line curl assignment inside connect_status(); no files changed.'
 USER_AGENT=''
 grep -Fq -- '-A "Mozilla/5.0"' "$WORK/connect_status.source" && USER_AGENT=' -A "Mozilla/5.0"' || true
 
@@ -122,9 +122,9 @@ END { if (count != 1) exit 41 }
 ' "$WORK/status.base" > "$WORK/status.new" || die 'Could not safely patch status.htm.'
 
 awk -v fragment="$WORK/controller.fragment" '
-/^function connect_status\\(\\)/ { in_connect=1; starts++ }
-/^function / && !/^function connect_status\\(\\)/ && in_connect { in_connect=0 }
-in_connect && /local result = luci\\.sys\\.exec\\(/ && /curl/ && /url/ {
+/^function connect_status\(\)/ { in_connect=1; starts++ }
+/^function / && !/^function connect_status\(\)/ && in_connect { in_connect=0 }
+in_connect && /local result = luci\.sys\.exec\(/ && /curl/ && /url/ {
     count++
     while ((getline line < fragment) > 0) print line
     close(fragment)
